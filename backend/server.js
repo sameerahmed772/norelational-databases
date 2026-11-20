@@ -1,5 +1,7 @@
 const http = require("http");
 const { MongoClient } = require("mongodb");
+const fs = require("fs");
+const path = require("path");
 
 const URI = process.env.MONGODB_URI || "mongodb://localhost:27017";
 const PORT = process.env.PORT || 3000;
@@ -8,11 +10,45 @@ async function main() {
   const client = new MongoClient(URI);
   await client.connect();
   const users = client.db("blog_db").collection("users");
+  const frontendDir = path.resolve(__dirname, "..", "frontend");
 
   const server = http.createServer(async (req, res) => {
     if (req.method !== "GET") {
       res.writeHead(405);
       res.end("Method not allowed");
+      return;
+    }
+
+    if (req.url === "/" || req.url === "/index.html") {
+      fs.readFile(path.join(frontendDir, "index.html"), (err, data) => {
+        if (err) {
+          res.writeHead(500);
+          res.end("Could not load frontend");
+          return;
+        }
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(data);
+      });
+      return;
+    }
+
+    const staticFiles = {
+      "/style.css": ["style.css", "text/css; charset=utf-8"],
+      "/script.js": ["script.js", "text/javascript; charset=utf-8"],
+      "/avatar.jpg": ["avatar.jpg", "image/jpeg"],
+    };
+
+    if (staticFiles[req.url]) {
+      const [fileName, contentType] = staticFiles[req.url];
+      fs.readFile(path.join(frontendDir, fileName), (err, data) => {
+        if (err) {
+          res.writeHead(404);
+          res.end("Not found");
+          return;
+        }
+        res.writeHead(200, { "Content-Type": contentType });
+        res.end(data);
+      });
       return;
     }
 
